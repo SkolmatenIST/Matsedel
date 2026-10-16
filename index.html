@@ -2,45 +2,133 @@
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
-    <title>Matsedel</title>
+    <title>Veckans Matsedel</title>
     <style>
-        body, html {
+        /* DESIGN FÖR INFOSKÄRMEN */
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
             margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* Döljer scrollistor */
-            background-color: #ffffff;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
         }
 
-        .wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 10px;
             width: 100%;
-            height: 100%;
+            text-align: center;
         }
 
-        iframe {
+        /* MATSEDELNS LAYOUT (5 RAKALINJADE BLOCK) */
+        #matsedel-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
             width: 100%;
-            height: 150%;
-            border: none;
-            
-            /* HÄR STYR VI SCHAKTNINGEN OCH ZOOMEFFEKTEN */
-            transform-origin: center top; /* Zoomar från mitten av skärmen istället för hörnet */
-            
-            /* scale = storlek (1.5 = 150%).  
-               translate(X, Y) flyttar sidan i sidled (X) och höjdled (Y). 
-               Ändra -100px till mer/mindre för att flytta maten uppåt eller nedåt. */
-            transform: scale(1.0) translate(0px, -325px); 
+            max-width: 900px;
+        }
+
+        .dag-kort {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            border-left: 6px solid #3498db;
+        }
+
+        .dag-namn {
+            font-size: 1.6rem;
+            font-weight: bold;
+            color: #2c3e50;
+            min-width: 180px;
+            text-transform: capitalize;
+        }
+
+        .mat-text {
+            font-size: 1.4rem;
+            color: #555;
+            line-height: 1.4;
+            flex-grow: 1;
+        }
+
+        .laddar {
+            font-size: 1.8rem;
+            color: #7f8c8d;
+            margin-top: 100px;
         }
     </style>
 </head>
 <body>
 
-    <div class="wrapper">
-        <!-- BYT UT URL:EN NEDAN TILL DIN SKOLAS RIKTIGA SKOLMATEN-ADRESS -->
-        <iframe src="https://skolmaten.se/snosatraskolan"></iframe>
+    <h1>Veckans Matsedel</h1>
+    <div id="matsedel-container">
+        <div class="laddar">Hämtar matsedel...</div>
     </div>
 
+    <!-- HÄR HÄMTAS Datan AUTOMATISKT FRÅN DITT RSS-FLÖDE -->
+    <script src="https://googleapis.com"></script>
+    <script>
+        // 1. KLISTRA IN DIN RIKTIGA RSS-LÄNK FRÅN SKOLMATEN HÄR:
+        const RSS_URL = 'https://skolmaten.se/api/4/rss/week/snosatraskolan?locale=sv';
+
+        const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
+
+        feednami.load(RSS_URL)
+            .then(feed => {
+                const container = document.getElementById('matsedel-container');
+                container.innerHTML = ''; // Ta bort "Laddar..."
+
+                // Sortera inläggen så att Måndag kommer först och Fredag sist
+                let poster = feed.entries;
+                poster.sort((a, b) => {
+                    let dagA = dagarOrdning.findIndex(d => a.title.toLowerCase().includes(d));
+                    let dagB = dagarOrdning.findIndex(d => b.title.toLowerCase().includes(d));
+                    return dagA - dagB;
+                });
+
+                // Ta endast med de 5 arbetsdagarna
+                const arbetsdagar = poster.filter(item => 
+                    dagarOrdning.some(d => item.title.toLowerCase().includes(d))
+                ).slice(0, 5);
+
+                // Bygg upp menyn på skärmen
+                arbetsdagar.forEach(item => {
+                    const kort = document.createElement('div');
+                    kort.className = 'dag-kort';
+
+                    // Snygga till rubriken (så det bara står t.ex. "Måndag")
+                    let rensadTitel = item.title;
+                    dagarOrdning.forEach(d => {
+                        if(item.title.toLowerCase().includes(d)) {
+                            rensadTitel = d;
+                        }
+                    });
+
+                    kort.innerHTML = `
+                        <div class="dag-namn">${rensadTitel}</div>
+                        <div class="mat-text">${item.description || item.summary}</div>
+                    `;
+                    container.appendChild(kort);
+                });
+            })
+            .catch(err => {
+                document.getElementById('matsedel-container').innerHTML = 
+                    `<div class="laddar" style="color:red;">Kunde inte ladda matsedeln just nu.</div>`;
+                console.error(err);
+            });
+    </script>
 </body>
+</html>
