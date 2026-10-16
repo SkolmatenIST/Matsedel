@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Veckans Matsedel</title>
     <style>
-        /* DESIGN ANPASSAD FÖR TV- OCH INFOSKÄRMAR */
+        /* DESIGN ANPASSAD FÖR INFOSKÄRMAR (KNIVSKARP OCH TYDLIG) */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #ffffff;
@@ -86,89 +86,79 @@
     </div>
 
     <script>
-        // 1. KLISTRA IN DIN RSS-LÄNK FRÅN SKOLMATEN HÄR:
-        const RSS_URL = 'https://skolmaten.se/api/4/rss/week/snosatraskolan?locale=sv';
+        // 1. KLISTRA IN DEN VANLIGA WEBBADRESSEN TILL DIN SKOLA HÄR (INTE RSS-LÄNKEN!)
+        // Exempel: 'https://skolmaten.se'
+        const SKOL_URL = 'https://skolmaten.se/snosatraskolan';
 
-        const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
-
-        // Vi använder AllOrigins öppna raw-api för att hämta datan stabilt
-        const proxyUrl = `https://allorigins.win{encodeURIComponent(RSS_URL)}`;
-
-        // Funktion för att på ett säkert sätt rensa bort CDATA och HTML-taggar ur RSS-texten
-        function stadaText(str) {
-            if (!str) return "Ingen meny registrerad";
-            let rensad = str.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '\$1');
-            rensad = rensad.replace(/<[^>]*>/g, ' ');
-            rensad = rensad.replace(/\s+/g, ' ');
-            return rensad.trim();
-        }
+        // Vi hämtar hemsidan som ren text via AllOrigins
+        const proxyUrl = `https://allorigins.win{encodeURIComponent(SKOL_URL)}`;
 
         fetch(proxyUrl)
             .then(response => {
                 if (response.ok) return response.text();
-                throw new Error('Nätverksfel vid hämtning.');
+                throw new Error('Kunde inte läsa hemsidan.');
             })
-            .then(str => {
+            .then(htmlString => {
                 const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(str, "text/xml");
-                const items = Array.from(xmlDoc.getElementsByTagName("item"));
+                const doc = parser.parseFromString(htmlString, "text/html");
                 
                 const container = document.getElementById('matsedel-container');
-                container.innerHTML = ''; 
+                container.innerHTML = ''; // Ta bort laddningsskärmen
 
-                // 1. SÄKER HÄMTNING AV TEXT: Vi plockar ut rå-HTML ur XML-taggarna för att förhindra krascher
-                const formateradePoster = items.map(item => {
-                    const titleTag = item.getElementsByTagName("title")[0];
-                    const descTag = item.getElementsByTagName("description")[0] || item.getElementsByTagName("summary")[0];
+                // Skolmaten sparar dagarna i rutor med klassnamnet "day" eller inuti ".meals"
+                // Vi skrapar alla måltidsrader direkt från den riktiga hemsidan
+                const dagar = doc.querySelectorAll('.day, [itemprop="menuItem"], .meal');
+
+                if (dagar.length === 0) {
+                    // Om Skolmaten ändrat sina kodord, testa ett bredare grepp
+                    const rader = Array.from(doc.querySelectorAll('li, div'));
+                    const filtrerade = rader.filter(el => 
+                        ['måndag','tisdag','onsdag','torsdag','fredag'].some(d => el.textContent.toLowerCase().includes(d))
+                    );
                     
-                    return {
-                        title: titleTag ? stadaText(titleTag.innerHTML) : "",
-                        description: descTag ? stadaText(descTag.innerHTML) : "Ingen meny registrerad"
-                    };
-                });
+                    if (filtrerade.length > 0) {
+                        renderaRader(filtrerade);
+                    } else {
+                        throw new Error('Hittade inga rader.');
+                    }
+                } else {
+                    renderaRader(Array.from(dagar).slice(0, 5));
+                }
 
-                // 2. Filtrera ut så att vi bara sparar de faktiska arbetsdagarna
-                const arbetsdagar = formateradePoster.filter(post => {
-                    return dagarOrdning.some(d => post.title.toLowerCase().includes(d));
-                });
+                function renderaRader(elementLista) {
+                    elementLista.forEach(el => {
+                        // Plocka ut veckodagen (eller rubriken) från elementet
+                        let text = el.textContent.replace(/\s+/g, ' ').trim();
+                        
+                        // Hitta vilken veckodag det är
+                        let hittadDag = "Matsedel";
+                        ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'].forEach(d => {
+                            if (text.toLowerCase().includes(d)) {
+                                hittadDag = d;
+                            }
+                        });
 
-                // 3. Sortera listan kronologiskt (Måndag till Fredag)
-                arbetsdagar.sort((a, b) => {
-                    let indexA = dagarOrdning.findIndex(d => a.title.toLowerCase().includes(d));
-                    let indexB = dagarOrdning.findIndex(d => b.title.toLowerCase().includes(d));
-                    return indexA - indexB;
-                });
+                        // Rensa bort veckodagsnamnet från själva maträtten så det blir snyggt
+                        let matRätt = text.replace(new RegExp(hittadDag, 'gi'), '').trim();
+                        matRätt = matRätt.replace(/v\.\d+/gi, '').trim(); // Tar bort ev. "v.42"
 
-                // 4. Begränsa till max 5 arbetsdagar
-                const veckansDagar = arbetsdagar.slice(0, 5);
+                        if (matRätt.length < 3) matRätt = "Ingen meny registrerad";
 
-                // 5. Bygg menykorten på skärmen
-                veckansDagar.forEach(post => {
-                    let rensadTitel = post.title;
-                    dagarOrdning.forEach(d => {
-                        if(post.title.toLowerCase().includes(d)) {
-                            rensadTitel = d;
-                        }
+                        const formateradDag = hittadDag.charAt(0).toUpperCase() + hittadDag.slice(1);
+
+                        const kort = document.createElement('div');
+                        kort.className = 'dag-kort';
+                        kort.innerHTML = `
+                            <div class="dag-namn">${formateradDag}</div>
+                            <div class="mat-text">${matRätt}</div>
+                        `;
+                        container.appendChild(kort);
                     });
-
-                    const formateradDag = rensadTitel.charAt(0).toUpperCase() + rensadTitel.slice(1);
-
-                    const kort = document.createElement('div');
-                    kort.className = 'dag-kort';
-                    kort.innerHTML = `
-                        <div class="dag-namn">${formateradDag}</div>
-                        <div class="mat-text">${post.description}</div>
-                    `;
-                    container.appendChild(kort);
-                });
-
-                if (veckansDagar.length === 0) {
-                    container.innerHTML = `<div class="laddar">Hittade inga giltiga matsedlar i flödet just nu.</div>`;
                 }
             })
             .catch(err => {
                 document.getElementById('matsedel-container').innerHTML = 
-                    `<div class="laddar" style="color:#c0392b; font-weight:bold;">Kunde inte hämta matsedeln från Skolmaten för tillfället.</div>`;
+                    `<div class="laddar" style="color:#c0392b; font-weight:bold;">Kunde inte hämta veckomenyn från Skolmaten just nu.</div>`;
                 console.error(err);
             });
     </script>
