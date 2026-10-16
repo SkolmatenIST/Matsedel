@@ -91,7 +91,6 @@
 
         const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
 
-        // Vi använder AllOrigins öppna raw-api för att garanterat slippa bli blockade
         const proxyUrl = `https://allorigins.win{encodeURIComponent(RSS_URL)}`;
 
         fetch(proxyUrl)
@@ -105,39 +104,48 @@
                 const items = Array.from(xmlDoc.getElementsByTagName("item"));
                 
                 const container = document.getElementById('matsedel-container');
-                container.innerHTML = ''; // Ta bort "Hämtar..."
+                container.innerHTML = ''; 
 
-                // Filtrera ut helgdagar och spara bara måndag-fredag
+                // 1. Filtrera ut rätt dagar genom att titta på den första [0] titeln ordentligt
                 const arbetsdagar = items.filter(item => {
-                    const titleNode = item.querySelector("title");
-                    const titleText = titleNode ? titleNode.textContent.toLowerCase() : "";
+                    const titleTags = item.getElementsByTagName("title");
+                    const titleText = titleTags.length > 0 ? titleTags[0].textContent.toLowerCase() : "";
                     return dagarOrdning.some(d => titleText.includes(d));
                 });
 
-                // Sortera listan kronologiskt (Måndag till Fredag)
+                // 2. Sortera listan kronologiskt (Måndag till Fredag)
                 arbetsdagar.sort((a, b) => {
-                    const titleA = a.querySelector("title")?.textContent.toLowerCase() || "";
-                    const titleB = b.querySelector("title")?.textContent.toLowerCase() || "";
+                    const titleA = a.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
+                    const titleB = b.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
                     let indexA = dagarOrdning.findIndex(d => titleA.includes(d));
                     let indexB = dagarOrdning.findIndex(d => titleB.includes(d));
                     return indexA - indexB;
                 });
 
-                // Begränsa till max 5 arbetsdagar utifall flödet innehåller gamla veckor
+                // 3. Begränsa till max 5 arbetsdagar
                 const veckansDagar = arbetsdagar.slice(0, 5);
 
-                // Bygg menykorten på skärmen
+                // 4. Bygg korten på skärmen
                 veckansDagar.forEach(item => {
-                    const rawTitle = item.querySelector("title")?.textContent || "";
+                    const rawTitle = item.getElementsByTagName("title")[0]?.textContent || "";
                     
-                    // Hämtar texten ur description-taggen eller summary-taggen
-                    const descNode = item.querySelector("description") || item.querySelector("summary");
-                    const rawDesc = descNode ? descNode.textContent : "Ingen meny registrerad";
+                    // Läs ut beskrivningen korrekt från första matchande tagg [0]
+                    const descTags = item.getElementsByTagName("description");
+                    const summaryTags = item.getElementsByTagName("summary");
+                    let rawDesc = "Ingen meny registrerad";
+
+                    if (descTags.length > 0) {
+                        rawDesc = descTags[0].textContent;
+                    } else if (summaryTags.length > 0) {
+                        rawDesc = summaryTags[0].textContent;
+                    }
+
+                    // Tvätta bort eventuella <br/>-taggar från Skolmaten
+                    rawDesc = rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
                     const kort = document.createElement('div');
                     kort.className = 'dag-kort';
 
-                    // Snygga till så det bara står namnet på veckodagen (t.ex. "Måndag")
                     let rensadTitel = rawTitle;
                     dagarOrdning.forEach(d => {
                         if(rawTitle.toLowerCase().includes(d)) {
