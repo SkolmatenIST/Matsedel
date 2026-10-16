@@ -4,163 +4,44 @@
     <meta charset="UTF-8">
     <title>Veckans Matsedel</title>
     <style>
-        /* DESIGN ANPASSAD FÖR INFOSKÄRMAR (KNIVSKARP OCH TYDLIG) */
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #ffffff;
-            color: #2c3e50;
+        /* Tvingar sidan att fylla TV-skärmen utan scrollister */
+        body, html {
             margin: 0;
-            padding: 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-            box-sizing: border-box;
-        }
-
-        h1 {
-            color: #1a3a5f;
-            margin-top: 0;
-            margin-bottom: 30px;
-            font-size: 3rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border-bottom: 5px solid #4a90e2;
-            padding-bottom: 15px;
+            padding: 0;
             width: 100%;
-            text-align: center;
-            font-weight: 700;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
         }
 
-        #matsedel-container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+        /* Detta är ramen som klipper bort Skolmatens menyer och reklam */
+        .matsedels-ram {
+            position: absolute;
+            top: -140px;    /* Knuffar upp sidan så att Skolmatens toppmeny och logga döljs */
+            left: -10px;    /* Justerar bort vänstermarginalen */
+            width: 102%;    /* Gör fönstret lite bredare än skärmen för att dölja sidofält */
+            height: 130%;   /* Gör fönstret extra högt så att sidan inte tar slut i botten */
+        }
+
+        iframe {
             width: 100%;
-            max-width: 1000px;
-        }
-
-        .dag-kort {
-            background: #fdfdfd;
-            padding: 25px 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.04);
-            display: flex;
-            align-items: center;
-            border-left: 8px solid #4a90e2;
-            border-top: 1px solid #eee;
-            border-right: 1px solid #eee;
-            border-bottom: 1px solid #eee;
-        }
-
-        .dag-namn {
-            font-size: 2.2rem;
-            font-weight: bold;
-            color: #1a3a5f;
-            min-width: 220px;
-            text-transform: capitalize;
-        }
-
-        .mat-text {
-            font-size: 1.8rem;
-            color: #444;
-            line-height: 1.5;
-            flex-grow: 1;
-            font-weight: 500;
-        }
-
-        .laddar {
-            font-size: 2rem;
-            color: #7f8c8d;
-            margin-top: 150px;
-            text-align: center;
-            width: 100%;
+            height: 100%;
+            border: none;
+            
+            /* HÄR STYR VI SKÄRPAN OCH STORLEKEN PÅ TEXTEN 
+               1.25 betyder 125% zoom vilket gör texten stor och tydlig på håll */
+            transform: scale(1.25);        
+            transform-origin: top center;  /* Zoomar snyggt utifrån mitten-toppen */
         }
     </style>
 </head>
 <body>
 
-    <h1>Veckans Matsedel</h1>
-    <div id="matsedel-container">
-        <div class="laddar">Hämtar matsedel...</div>
+    <div class="matsedels-ram">
+        <!-- 1. BYT UT WEBBADRESSEN NEDAN TILL DIN SKOLAS VANLIGA SKOLMATEN-SIDA -->
+        <!-- Exempel: https://skolmaten.se -->
+        <iframe src="https://skolmaten.se/snosatraskolan"></iframe>
     </div>
 
-    <script>
-        // 1. KLISTRA IN DEN VANLIGA WEBBADRESSEN TILL DIN SKOLA HÄR (INTE RSS-LÄNKEN!)
-        // Exempel: 'https://skolmaten.se'
-        const SKOL_URL = 'https://skolmaten.se/snosatraskolan';
-
-        // Vi hämtar hemsidan som ren text via AllOrigins
-        const proxyUrl = `https://allorigins.win{encodeURIComponent(SKOL_URL)}`;
-
-        fetch(proxyUrl)
-            .then(response => {
-                if (response.ok) return response.text();
-                throw new Error('Kunde inte läsa hemsidan.');
-            })
-            .then(htmlString => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlString, "text/html");
-                
-                const container = document.getElementById('matsedel-container');
-                container.innerHTML = ''; // Ta bort laddningsskärmen
-
-                // Skolmaten sparar dagarna i rutor med klassnamnet "day" eller inuti ".meals"
-                // Vi skrapar alla måltidsrader direkt från den riktiga hemsidan
-                const dagar = doc.querySelectorAll('.day, [itemprop="menuItem"], .meal');
-
-                if (dagar.length === 0) {
-                    // Om Skolmaten ändrat sina kodord, testa ett bredare grepp
-                    const rader = Array.from(doc.querySelectorAll('li, div'));
-                    const filtrerade = rader.filter(el => 
-                        ['måndag','tisdag','onsdag','torsdag','fredag'].some(d => el.textContent.toLowerCase().includes(d))
-                    );
-                    
-                    if (filtrerade.length > 0) {
-                        renderaRader(filtrerade);
-                    } else {
-                        throw new Error('Hittade inga rader.');
-                    }
-                } else {
-                    renderaRader(Array.from(dagar).slice(0, 5));
-                }
-
-                function renderaRader(elementLista) {
-                    elementLista.forEach(el => {
-                        // Plocka ut veckodagen (eller rubriken) från elementet
-                        let text = el.textContent.replace(/\s+/g, ' ').trim();
-                        
-                        // Hitta vilken veckodag det är
-                        let hittadDag = "Matsedel";
-                        ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'].forEach(d => {
-                            if (text.toLowerCase().includes(d)) {
-                                hittadDag = d;
-                            }
-                        });
-
-                        // Rensa bort veckodagsnamnet från själva maträtten så det blir snyggt
-                        let matRätt = text.replace(new RegExp(hittadDag, 'gi'), '').trim();
-                        matRätt = matRätt.replace(/v\.\d+/gi, '').trim(); // Tar bort ev. "v.42"
-
-                        if (matRätt.length < 3) matRätt = "Ingen meny registrerad";
-
-                        const formateradDag = hittadDag.charAt(0).toUpperCase() + hittadDag.slice(1);
-
-                        const kort = document.createElement('div');
-                        kort.className = 'dag-kort';
-                        kort.innerHTML = `
-                            <div class="dag-namn">${formateradDag}</div>
-                            <div class="mat-text">${matRätt}</div>
-                        `;
-                        container.appendChild(kort);
-                    });
-                }
-            })
-            .catch(err => {
-                document.getElementById('matsedel-container').innerHTML = 
-                    `<div class="laddar" style="color:#c0392b; font-weight:bold;">Kunde inte hämta veckomenyn från Skolmaten just nu.</div>`;
-                console.error(err);
-            });
-    </script>
 </body>
 </html>
