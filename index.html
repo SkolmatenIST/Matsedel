@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Veckans Matsedel</title>
     <style>
-        /* DESIGN ANPASSAD FÖR TV- OCH INFOSKÄRMAR */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #ffffff;
@@ -91,13 +90,12 @@
 
         const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
 
-        // Vi använder AllOrigins öppna raw-api för att garanterat slippa bli blockade
         const proxyUrl = `https://allorigins.win{encodeURIComponent(RSS_URL)}`;
 
         fetch(proxyUrl)
             .then(response => {
                 if (response.ok) return response.text();
-                throw new Error('Nätverksfel beim hämtning.');
+                throw new Error('Nätverksfel vid hämtning.');
             })
             .then(str => {
                 const parser = new DOMParser();
@@ -107,14 +105,14 @@
                 const container = document.getElementById('matsedel-container');
                 container.innerHTML = ''; 
 
-                // 1. SÄKER FILTRERING: Kontrollera att taggen finns innan vi kör textContent
+                // 1. Filtrera ut arbetsdagar
                 const arbetsdagar = items.filter(item => {
                     const titleTags = item.getElementsByTagName("title");
                     const titleText = titleTags.length > 0 ? titleTags[0].textContent.toLowerCase() : "";
                     return dagarOrdning.some(d => titleText.includes(d));
                 });
 
-                // 2. SÄKER SORTERING: Kontrollera att index [0] används överallt
+                // 2. Sortera listan kronologiskt (Måndag till Fredag)
                 arbetsdagar.sort((a, b) => {
                     const tagA = a.getElementsByTagName("title");
                     const tagB = b.getElementsByTagName("title");
@@ -128,7 +126,7 @@
                 // 3. Spara max 5 arbetsdagar
                 const veckansDagar = arbetsdagar.slice(0, 5);
 
-                // 4. SÄKER UTMATNING: Bygg korten på skärmen
+                // 4. Bygg korten på skärmen
                 veckansDagar.forEach(item => {
                     const titleTags = item.getElementsByTagName("title");
                     const rawTitle = titleTags.length > 0 ? titleTags[0].textContent : "";
@@ -152,11 +150,10 @@
                     let rensadTitel = rawTitle;
                     dagarOrdning.forEach(d => {
                         if(rawTitle.toLowerCase().includes(d)) {
-                            rensamTitel = d; // Ger ren text som "måndag"
+                            rensadTitel = d;
                         }
                     });
 
-                    // Tvinga stor begynnelsebokstav på veckodagen i HTML-strukturen
                     const formateradDag = rensadTitel.charAt(0).toUpperCase() + rensadTitel.slice(1);
 
                     kort.innerHTML = `
