@@ -91,12 +91,13 @@
 
         const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
 
+        // Vi använder AllOrigins öppna raw-api för att garanterat slippa bli blockade
         const proxyUrl = `https://allorigins.win{encodeURIComponent(RSS_URL)}`;
 
         fetch(proxyUrl)
             .then(response => {
                 if (response.ok) return response.text();
-                throw new Error('Nätverksfel vid hämtning.');
+                throw new Error('Nätverksfel beim hämtning.');
             })
             .then(str => {
                 const parser = new DOMParser();
@@ -106,30 +107,32 @@
                 const container = document.getElementById('matsedel-container');
                 container.innerHTML = ''; 
 
-                // 1. Filtrera ut rätt dagar genom att titta på den första [0] titeln ordentligt
+                // 1. SÄKER FILTRERING: Kontrollera att taggen finns innan vi kör textContent
                 const arbetsdagar = items.filter(item => {
                     const titleTags = item.getElementsByTagName("title");
                     const titleText = titleTags.length > 0 ? titleTags[0].textContent.toLowerCase() : "";
                     return dagarOrdning.some(d => titleText.includes(d));
                 });
 
-                // 2. Sortera listan kronologiskt (Måndag till Fredag)
+                // 2. SÄKER SORTERING: Kontrollera att index [0] används överallt
                 arbetsdagar.sort((a, b) => {
-                    const titleA = a.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
-                    const titleB = b.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
+                    const tagA = a.getElementsByTagName("title");
+                    const tagB = b.getElementsByTagName("title");
+                    const titleA = tagA.length > 0 ? tagA[0].textContent.toLowerCase() : "";
+                    const titleB = tagB.length > 0 ? tagB[0].textContent.toLowerCase() : "";
                     let indexA = dagarOrdning.findIndex(d => titleA.includes(d));
                     let indexB = dagarOrdning.findIndex(d => titleB.includes(d));
                     return indexA - indexB;
                 });
 
-                // 3. Begränsa till max 5 arbetsdagar
+                // 3. Spara max 5 arbetsdagar
                 const veckansDagar = arbetsdagar.slice(0, 5);
 
-                // 4. Bygg korten på skärmen
+                // 4. SÄKER UTMATNING: Bygg korten på skärmen
                 veckansDagar.forEach(item => {
-                    const rawTitle = item.getElementsByTagName("title")[0]?.textContent || "";
+                    const titleTags = item.getElementsByTagName("title");
+                    const rawTitle = titleTags.length > 0 ? titleTags[0].textContent : "";
                     
-                    // Läs ut beskrivningen korrekt från första matchande tagg [0]
                     const descTags = item.getElementsByTagName("description");
                     const summaryTags = item.getElementsByTagName("summary");
                     let rawDesc = "Ingen meny registrerad";
@@ -140,7 +143,7 @@
                         rawDesc = summaryTags[0].textContent;
                     }
 
-                    // Tvätta bort eventuella <br/>-taggar från Skolmaten
+                    // Tvätta bort HTML-skräp och radbrytningar
                     rawDesc = rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
                     const kort = document.createElement('div');
@@ -149,19 +152,22 @@
                     let rensadTitel = rawTitle;
                     dagarOrdning.forEach(d => {
                         if(rawTitle.toLowerCase().includes(d)) {
-                            rensadTitel = d;
+                            rensamTitel = d; // Ger ren text som "måndag"
                         }
                     });
 
+                    // Tvinga stor begynnelsebokstav på veckodagen i HTML-strukturen
+                    const formateradDag = rensadTitel.charAt(0).toUpperCase() + rensadTitel.slice(1);
+
                     kort.innerHTML = `
-                        <div class="dag-namn">${rensadTitel}</div>
+                        <div class="dag-namn">${formateradDag}</div>
                         <div class="mat-text">${rawDesc}</div>
                     `;
                     container.appendChild(kort);
                 });
 
                 if (veckansDagar.length === 0) {
-                    container.innerHTML = `<div class="laddar">Hittade inga giltiga matsedlar i flödet just nu.</div>`;
+                    container.innerHTML = `<div class="laddar">Hittade inga giltiga matsedelsdagar i flödet just nu.</div>`;
                 }
             })
             .catch(err => {
