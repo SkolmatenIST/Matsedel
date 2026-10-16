@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Veckans Matsedel</title>
     <style>
+        /* DESIGN ANPASSAD FÖR TV- OCH INFOSKÄRMAR */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #ffffff;
@@ -90,7 +91,17 @@
 
         const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
 
+        // Vi använder AllOrigins öppna raw-api för att hämta datan stabilt
         const proxyUrl = `https://allorigins.win{encodeURIComponent(RSS_URL)}`;
+
+        // Funktion för att på ett säkert sätt rensa bort CDATA och HTML-taggar ur RSS-texten
+        function stadaText(str) {
+            if (!str) return "Ingen meny registrerad";
+            let rensad = str.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '\$1');
+            rensad = rensad.replace(/<[^>]*>/g, ' ');
+            rensad = rensad.replace(/\s+/g, ' ');
+            return rensad.trim();
+        }
 
         fetch(proxyUrl)
             .then(response => {
@@ -105,66 +116,54 @@
                 const container = document.getElementById('matsedel-container');
                 container.innerHTML = ''; 
 
-                // 1. Filtrera ut arbetsdagar
-                const arbetsdagar = items.filter(item => {
-                    const titleTags = item.getElementsByTagName("title");
-                    const titleText = titleTags.length > 0 ? titleTags[0].textContent.toLowerCase() : "";
-                    return dagarOrdning.some(d => titleText.includes(d));
+                // 1. SÄKER HÄMTNING AV TEXT: Vi plockar ut rå-HTML ur XML-taggarna för att förhindra krascher
+                const formateradePoster = items.map(item => {
+                    const titleTag = item.getElementsByTagName("title")[0];
+                    const descTag = item.getElementsByTagName("description")[0] || item.getElementsByTagName("summary")[0];
+                    
+                    return {
+                        title: titleTag ? stadaText(titleTag.innerHTML) : "",
+                        description: descTag ? stadaText(descTag.innerHTML) : "Ingen meny registrerad"
+                    };
                 });
 
-                // 2. Sortera listan kronologiskt (Måndag till Fredag)
+                // 2. Filtrera ut så att vi bara sparar de faktiska arbetsdagarna
+                const arbetsdagar = formateradePoster.filter(post => {
+                    return dagarOrdning.some(d => post.title.toLowerCase().includes(d));
+                });
+
+                // 3. Sortera listan kronologiskt (Måndag till Fredag)
                 arbetsdagar.sort((a, b) => {
-                    const tagA = a.getElementsByTagName("title");
-                    const tagB = b.getElementsByTagName("title");
-                    const titleA = tagA.length > 0 ? tagA[0].textContent.toLowerCase() : "";
-                    const titleB = tagB.length > 0 ? tagB[0].textContent.toLowerCase() : "";
-                    let indexA = dagarOrdning.findIndex(d => titleA.includes(d));
-                    let indexB = dagarOrdning.findIndex(d => titleB.includes(d));
+                    let indexA = dagarOrdning.findIndex(d => a.title.toLowerCase().includes(d));
+                    let indexB = dagarOrdning.findIndex(d => b.title.toLowerCase().includes(d));
                     return indexA - indexB;
                 });
 
-                // 3. Spara max 5 arbetsdagar
+                // 4. Begränsa till max 5 arbetsdagar
                 const veckansDagar = arbetsdagar.slice(0, 5);
 
-                // 4. Bygg korten på skärmen
-                veckansDagar.forEach(item => {
-                    const titleTags = item.getElementsByTagName("title");
-                    const rawTitle = titleTags.length > 0 ? titleTags[0].textContent : "";
-                    
-                    const descTags = item.getElementsByTagName("description");
-                    const summaryTags = item.getElementsByTagName("summary");
-                    let rawDesc = "Ingen meny registrerad";
-
-                    if (descTags.length > 0) {
-                        rawDesc = descTags[0].textContent;
-                    } else if (summaryTags.length > 0) {
-                        rawDesc = summaryTags[0].textContent;
-                    }
-
-                    // Tvätta bort HTML-skräp och radbrytningar
-                    rawDesc = rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-
-                    const kort = document.createElement('div');
-                    kort.className = 'dag-kort';
-
-                    let rensadTitel = rawTitle;
+                // 5. Bygg menykorten på skärmen
+                veckansDagar.forEach(post => {
+                    let rensadTitel = post.title;
                     dagarOrdning.forEach(d => {
-                        if(rawTitle.toLowerCase().includes(d)) {
+                        if(post.title.toLowerCase().includes(d)) {
                             rensadTitel = d;
                         }
                     });
 
                     const formateradDag = rensadTitel.charAt(0).toUpperCase() + rensadTitel.slice(1);
 
+                    const kort = document.createElement('div');
+                    kort.className = 'dag-kort';
                     kort.innerHTML = `
                         <div class="dag-namn">${formateradDag}</div>
-                        <div class="mat-text">${rawDesc}</div>
+                        <div class="mat-text">${post.description}</div>
                     `;
                     container.appendChild(kort);
                 });
 
                 if (veckansDagar.length === 0) {
-                    container.innerHTML = `<div class="laddar">Hittade inga giltiga matsedelsdagar i flödet just nu.</div>`;
+                    container.innerHTML = `<div class="laddar">Hittade inga giltiga matsedlar i flödet just nu.</div>`;
                 }
             })
             .catch(err => {
