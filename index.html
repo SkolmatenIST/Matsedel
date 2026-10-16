@@ -91,8 +91,8 @@
 
         const dagarOrdning = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag'];
 
-        // Vi använder corsproxy.io som är en supersnabb och stabil gratistjänst för infoskärmar
-        const proxyUrl = `https://corsproxy.io{encodeURIComponent(RSS_URL)}`;
+        // Vi använder AllOrigins öppna raw-api för att garanterat slippa bli blockade
+        const proxyUrl = `https://allorigins.win{encodeURIComponent(RSS_URL)}`;
 
         fetch(proxyUrl)
             .then(response => {
@@ -107,33 +107,37 @@
                 const container = document.getElementById('matsedel-container');
                 container.innerHTML = ''; // Ta bort "Hämtar..."
 
-                // Sortera så att Måndag kommer först och Fredag sist
-                items.sort((a, b) => {
-                    const titleA = a.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
-                    const titleB = b.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
-                    let dagA = dagarOrdning.findIndex(d => titleA.includes(d));
-                    let dagB = dagarOrdning.findIndex(d => titleB.includes(d));
-                    return dagA - dagB;
+                // Filtrera ut helgdagar och spara bara måndag-fredag
+                const arbetsdagar = items.filter(item => {
+                    const titleNode = item.querySelector("title");
+                    const titleText = titleNode ? titleNode.textContent.toLowerCase() : "";
+                    return dagarOrdning.some(d => titleText.includes(d));
                 });
 
-                // Filtrera bort helgdagar och ta bara arbetsdagarna
-                const arbetsdagar = items.filter(item => {
-                    const title = item.getElementsByTagName("title")[0]?.textContent.toLowerCase() || "";
-                    return dagarOrdning.some(d => title.includes(d));
-                }).slice(0, 5);
+                // Sortera listan kronologiskt (Måndag till Fredag)
+                arbetsdagar.sort((a, b) => {
+                    const titleA = a.querySelector("title")?.textContent.toLowerCase() || "";
+                    const titleB = b.querySelector("title")?.textContent.toLowerCase() || "";
+                    let indexA = dagarOrdning.findIndex(d => titleA.includes(d));
+                    let indexB = dagarOrdning.findIndex(d => titleB.includes(d));
+                    return indexA - indexB;
+                });
+
+                // Begränsa till max 5 arbetsdagar utifall flödet innehåller gamla veckor
+                const veckansDagar = arbetsdagar.slice(0, 5);
 
                 // Bygg menykorten på skärmen
-                arbetsdagar.forEach(item => {
-                    const rawTitle = item.getElementsByTagName("title")[0]?.textContent || "";
+                veckansDagar.forEach(item => {
+                    const rawTitle = item.querySelector("title")?.textContent || "";
                     
-                    // Skolmaten använder ibland <description> och ibland <summary>
-                    const descElement = item.getElementsByTagName("description")[0] || item.getElementsByTagName("summary")[0];
-                    const rawDesc = descElement ? descElement.textContent : "Ingen meny registrerad";
+                    // Hämtar texten ur description-taggen eller summary-taggen
+                    const descNode = item.querySelector("description") || item.querySelector("summary");
+                    const rawDesc = descNode ? descNode.textContent : "Ingen meny registrerad";
 
                     const kort = document.createElement('div');
                     kort.className = 'dag-kort';
 
-                    // Snygga till så det bara står namnet på veckodagen
+                    // Snygga till så det bara står namnet på veckodagen (t.ex. "Måndag")
                     let rensadTitel = rawTitle;
                     dagarOrdning.forEach(d => {
                         if(rawTitle.toLowerCase().includes(d)) {
@@ -148,13 +152,13 @@
                     container.appendChild(kort);
                 });
 
-                if (arbetsdagar.length === 0) {
-                    container.innerHTML = `<div class="laddar">Hittade inga matsedlar för den här veckan i flödet.</div>`;
+                if (veckansDagar.length === 0) {
+                    container.innerHTML = `<div class="laddar">Hittade inga giltiga matsedlar i flödet just nu.</div>`;
                 }
             })
             .catch(err => {
                 document.getElementById('matsedel-container').innerHTML = 
-                    `<div class="laddar" style="color:#c0392b; font-weight:bold;">Kunde inte ladda matsedeln automatiskt just nu.</div>`;
+                    `<div class="laddar" style="color:#c0392b; font-weight:bold;">Kunde inte hämta matsedeln från Skolmaten för tillfället.</div>`;
                 console.error(err);
             });
     </script>
