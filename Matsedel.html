@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <title>Matsedel</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Döljer scrollistor */
+            background-color: #ffffff;
+        }
+
+        .wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        iframe {
+            width: 100%;
+            height: 150%;
+            border: none;
+            
+            /* HÄR STYR VI SCHAKTNINGEN OCH ZOOMEFFEKTEN */
+            transform-origin: center top; /* Zoomar från mitten av skärmen istället för hörnet */
+            
+            /* scale = storlek (1.5 = 150%).  
+               translate(X, Y) flyttar sidan i sidled (X) och höjdled (Y). 
+               Ändra -100px till mer/mindre för att flytta maten uppåt eller nedåt. */
+            transform: scale(1.3) translate(0px, -325px); 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="wrapper">
+        <!-- BYT UT URL:EN NEDAN TILL DIN SKOLAS RIKTIGA SKOLMATEN-ADRESS -->
+        <iframe src="https://skolmaten.se/snosatraskolan"></iframe>
+    </div>
+
+</body>
